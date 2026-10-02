@@ -23,7 +23,7 @@ else
       -p 8006:8006 \
       -p 3389:3389 \
       -e VERSION='tiny11' \
-      -e RAM_SIZE='4G' \
+      -e RAM_SIZE='8G' \
       -e DISK_SIZE='32G' \
       -e DISK_CACHE='writethrough' \
       -v "$(pwd)/storage:/storage" \
