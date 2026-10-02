@@ -1,5 +1,5 @@
 {
-  "name": "Windows Tiny10 RDP",
+  "name": "Windows 11 RDP",
   "forwardPorts": [8006, 3389],
   "postStartCommand": "bash .devcontainer/start.sh"
 }
