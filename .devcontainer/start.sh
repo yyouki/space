@@ -3,23 +3,23 @@ cd /workspaces/Codespaces || cd "$(dirname "$0")/.."
 
 mkdir -p storage
 
-# 1. Cek status kontainer Windows
+# 1. Logika Cerdas: Auto-Resume jika Windows sudah ada
 if [ "$(docker ps -q -f name=windows)" ]; then
     echo "Windows sudah aktif berjalan."
 elif [ "$(docker ps -aq -f name=windows)" ]; then
-    echo "Membangunkan kontainer Windows yang tertidur..."
+    echo "Membangunkan Windows dari mode tidur..."
     docker start windows
 else
-    echo "Membuat kontainer Windows 11 baru..."
+    echo "Membuat Windows Tiny10 baru (Full Otomatis)..."
     docker run -d \
       --name windows \
       --restart always \
       --stop-timeout 60 \
       -p 8006:8006 \
       -p 3389:3389 \
-      -e VERSION='tiny11' \
+      -e VERSION='tiny10' \
       -e RAM_SIZE='4G' \
-      -e DISK_SIZE='32G' \
+      -e DISK_SIZE='20G' \
       -e DISK_CACHE='writethrough' \
       -v "$(pwd)/storage:/storage" \
       --device=/dev/kvm \
@@ -28,13 +28,16 @@ else
       dockurr/windows
 fi
 
-# 2. Jalankan Localtonet jika belum aktif
-if ! pgrep -f localtonet > /dev/null; then
-    if [ ! -f ./localtonet ]; then
-        curl -sSL https://localtonet.com/download/localtonet-linux-x64.zip -o localtonet.zip
-        unzip -o localtonet.zip > /dev/null 2>&1
-        chmod +x localtonet
-        rm -f localtonet.zip
-    fi
-    nohup ./localtonet authtoken MClz8jZrby3Gw4mYeh6foSav75RLUtEHD > /dev/null 2>&1 &
+# 2. Pasang Tailscale (Jalur P2P Super Kencang Anti-Lag)
+if ! command -v tailscale &> /dev/null; then
+    echo "Menginstall Tailscale..."
+    curl -fsSL https://tailscale.com/install.sh | sh
 fi
+
+# Jalankan daemon Tailscale
+sudo pkill -f tailscaled 2>/dev/null || true
+sudo tailscaled --tun=userspace-networking &
+sleep 2
+
+# Hubungkan ke Tailscale
+sudo tailscale up --accept-routes
