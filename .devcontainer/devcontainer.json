@@ -1,0 +1,8 @@
+{
+  "name": "Windows 11 Container",
+  "forwardPorts": [8006, 3389],
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "hostRequirements": {
+    "storage": "64GB"
+  }
+}
