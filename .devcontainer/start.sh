@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /workspaces/Codespaces || cd "$(dirname "$0")/.."
+cd /workspaces/space || cd "$(dirname "$0")/.."
 
 mkdir -p storage
 
