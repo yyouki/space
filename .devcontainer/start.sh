@@ -1,25 +1,22 @@
 #!/bin/bash
 cd /workspaces/Codespaces || cd "$(dirname "$0")/.."
 
-# 1. HAPUS SAMPAH BAWAAN CODESPACES (Biar disk punya ruang kosong 25+ GB!)
-echo "Mengosongkan ruang server Codespaces..."
-sudo rm -rf /opt/conda /usr/share/dotnet /usr/local/share/powershell /usr/local/lib/android /tmp/* 2>/dev/null || true
-docker system prune -af 2>/dev/null || true
-
 mkdir -p storage
 
-# 2. Jalankan Windows 11 (Tiny11)
+# 1. JIKA WINDOWS SUDAH BERJALAN, JANGAN DIAPA-APAKAN
 if [ "$(docker ps -q -f name=windows)" ]; then
-    echo "Windows 11 sudah berjalan."
+    echo "Windows sudah aktif berjalan."
+# 2. JIKA KONTAINER ADA TAPI MATI, CUKUP START (HANYA 3 DETIK, TIDAK INSTALL ULANG)
 elif [ "$(docker ps -aq -f name=windows)" ]; then
-    echo "Membangunkan Windows 11..."
+    echo "Membangunkan Windows tanpa install ulang..."
     docker start windows
+# 3. JIKA BELUM PERNAH DIBUAT SAMA SEKALI, BARU JALANKAN INI
 else
-    echo "Menginstall Windows 11 (Tiny11)..."
+    echo "Membuat Windows..."
     docker run -d \
       --name windows \
       --restart always \
-      --stop-timeout 60 \
+      --stop-timeout 120 \
       -p 8006:8006 \
       -p 3389:3389 \
       -e VERSION='tiny11' \
@@ -33,13 +30,13 @@ else
       dockurr/windows
 fi
 
-# 3. Setup Tailscale (Jalur Cepat P2P ke HP)
+# Setup Tailscale
 if ! command -v tailscale &> /dev/null; then
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
 
-sudo pkill -f tailscaled 2>/dev/null || true
-sudo tailscaled --tun=userspace-networking &
-sleep 2
-
-sudo tailscale up --accept-routes
+if ! pgrep -f tailscaled > /dev/null; then
+    sudo tailscaled --tun=userspace-networking &
+    sleep 2
+    sudo tailscale up --accept-routes
+fi
