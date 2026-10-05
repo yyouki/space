@@ -1,13 +1,16 @@
 #!/bin/bash
-# Pindah otomatis ke folder proyek (apapun nama reponya)
 cd "$(dirname "$0")/.."
+
+# 1. Bersihkan sampah bawaan Codespaces (Bebaskan ~10 GB)
+sudo rm -rf /opt/conda /usr/share/dotnet /usr/local/share/powershell /usr/local/lib/android /tmp/* 2>/dev/null || true
+docker system prune -f 2>/dev/null || true
 
 mkdir -p storage
 
-# 1. Bersihkan sisa kontainer lama
+# 2. Hentikan kontainer lama jika ada
 docker rm -f windows 2>/dev/null || true
 
-# 2. Jalankan Windows Tiny10 (Terkunci ke tiny10, Disk aman 18G)
+# 3. Jalankan Windows Tiny10 dengan Format Disk Terkompresi (qcow2)
 docker run -d \
   --name windows \
   --restart always \
@@ -16,7 +19,7 @@ docker run -d \
   -p 3389:3389 \
   -e VERSION='tiny10' \
   -e RAM_SIZE='4G' \
-  -e DISK_SIZE='18G' \
+  -e DISK_SIZE='16G' \
   -e DISK_FMT='qcow2' \
   -e DISK_CACHE='writethrough' \
   -v "$(pwd)/storage:/storage" \
@@ -25,7 +28,7 @@ docker run -d \
   --cap-add NET_ADMIN \
   dockurr/windows
 
-# 3. Jalankan Tailscale
+# 4. Jalankan Tailscale
 if ! command -v tailscale &> /dev/null; then
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
