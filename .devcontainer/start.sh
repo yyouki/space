@@ -17,6 +17,7 @@ docker run -d \
   -e VERSION='tiny10' \
   -e RAM_SIZE='4G' \
   -e DISK_SIZE='18G' \
+  -e DISK_FMT='qcow2' \
   -e DISK_CACHE='writethrough' \
   -v "$(pwd)/storage:/storage" \
   --device=/dev/kvm \
