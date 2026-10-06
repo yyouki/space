@@ -9,7 +9,6 @@ docker rm -f windows 2>/dev/null || true
 # 2. Jalankan Windows Tiny10
 docker run -d \
   --name windows \
-  --restart always \
   --stop-timeout 120 \
   -p 8006:8006 \
   -p 3389:3389 \
