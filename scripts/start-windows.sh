@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT/scripts/lib.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/scripts/lib.sh"
 space_load_env
 
 LIFECYCLE=0
 for arg in "$@"; do
   case "$arg" in
     --lifecycle) LIFECYCLE=1 ;;
-    *) echo "Usage: ${0 [--lifecycle]" >&2; exit 2 ;;
+    *) echo "Usage: $0 [--lifecycle]" >&2; exit 2 ;;
   esac
 done
 
@@ -18,7 +18,7 @@ if ! space_disk_exists; then
   echo "Windows disk missing or empty at storage/data.img."
   echo "Normal startup will NOT download or reinstall Windows."
   echo "Use ./scripts/init-windows.sh only for an intentional first install, or restore a backup."
-  (( LIFECYCLE == 1 )) && exit 0
+  if (( LIFECYCLE == 1 )); then exit 0; fi
   exit 2
 fi
 
@@ -27,7 +27,7 @@ if space_container_exists && space_container_running; then
   exit 0
 fi
 
-bash "${ROOT/scripts/preflight.sh"
+bash "$ROOT/scripts/preflight.sh"
 
 if space_container_exists; then
   echo "Starting the existing stopped Windows container and its existing disk."

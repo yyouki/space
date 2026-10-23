@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT/scripts/lib.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/scripts/lib.sh"
 space_load_env
 
 YES=0
 for arg in "$@"; do
   case "$arg" in
     --yes-initial-install) YES=1 ;;
-    *) echo "Usage: ${0 [--yes-initial-install]" >&2; exit 2 ;;
+    *) echo "Usage: $0 [--yes-initial-install]" >&2; exit 2 ;;
   esac
 done
 
 space_require_docker
 
 if space_container_exists; then
-  echo "STOP: container '${WINDOWS_CONTAINER' already exists."
+  echo "STOP: container '$WINDOWS_CONTAINER' already exists."
   echo "Use ./scripts/start-windows.sh. This script never replaces an existing container."
   exit 2
 fi
@@ -26,11 +26,11 @@ if [[ -e "$WINDOWS_DISK" || -L "$WINDOWS_DISK" ]]; then
   exit 2
 fi
 
-bash "${ROOT/scripts/preflight.sh"
+bash "$ROOT/scripts/preflight.sh"
 
 echo
 echo "This creates a NEW Windows VM disk at storage/data.img."
-echo "Windows setup will download installation components and create a virtual disk up to ${{WINDOWS_DISK_SIZE:-64G}."
+echo "Windows setup will download installation components and create a virtual disk up to ${WINDOWS_DISK_SIZE:-64G}."
 echo "It does not create macOS or Googlebook OS."
 if (( YES == 1 )); then
   if [[ -t 0 ]]; then
@@ -53,7 +53,7 @@ if [[ -e "$WINDOWS_DISK" || -L "$WINDOWS_DISK" ]]; then
 fi
 
 docker pull dockurr/windows
-space_run_container "${{WINDOWS_DISK_SIZE:-64G}"
+space_run_container "${WINDOWS_DISK_SIZE:-64G}"
 echo
 echo "Windows container created. First install may take a while."
 echo "Open the forwarded port 8006 web console. Do not remove the container or storage/data.img."

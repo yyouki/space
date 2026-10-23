@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT/scripts/lib.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/scripts/lib.sh"
 space_load_env
 
-MIN_FREE_GB="${{MIN_FREE_GB:-24}"
-MIN_HOST_RAM_GB="${{MIN_HOST_RAM_GB:-6}"
+MIN_FREE_GB="${MIN_FREE_GB:-24}"
+MIN_HOST_RAM_GB="${MIN_HOST_RAM_GB:-6}"
 errors=0
 
 fail() { echo "FAIL: $*" >&2; errors=$((errors + 1)); }
@@ -13,7 +13,7 @@ pass() { echo "OK:   $*"; }
 warn() { echo "WARN: $*"; }
 
 echo "Codespaces OS Lab preflight"
-echo "Workspace: ${ROOT"
+echo "Workspace: $ROOT"
 echo
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
@@ -36,39 +36,39 @@ fi
 
 cpu_count="$(nproc 2>/dev/null || echo 0)"
 if [[ "$cpu_count" =~ ^[0-9]+$ ]] && (( cpu_count >= 2 )); then
-  pass "CPU count: ${cpu_count"
+  pass "CPU count: $cpu_count"
 else
-  fail "At least 2 visible CPU threads are required (detected: ${cpu_count)"
+  fail "At least 2 visible CPU threads are required (detected: $cpu_count)"
 fi
 
 available_kib="$(awk '/MemAvailable:/ {print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)"
 required_kib="$((MIN_HOST_RAM_GB * 1024 * 1024))"
 if [[ "$available_kib" =~ ^[0-9]+$ ]] && (( available_kib >= required_kib )); then
-  pass "Available host memory is at least ${{MIN_HOST_RAM_GB} GiB"
+  pass "Available host memory is at least $MIN_HOST_RAM_GB GiB"
 else
-  fail "Less than ${{MIN_HOST_RAM_GB} GiB memory is available; do not start a 4 GiB Windows guest on this host."
+  fail "Less than $MIN_HOST_RAM_GB GiB memory is available; do not start a 4 GiB Windows guest on this host."
 fi
 
 free_kib="$(df -Pk "$ROOT" | awk 'NR==2 {print $4}')"
 required_kib="$((MIN_FREE_GB * 1024 * 1024))"
 if [[ "$free_kib" =~ ^[0-9]+$ ]] && (( free_kib >= required_kib )); then
-  pass "Workspace has at least ${{MIN_FREE_GB} GiB free"
+  pass "Workspace has at least $MIN_FREE_GB GiB free"
 else
-  fail "Workspace has less than ${{MIN_FREE_GB} GiB free. Windows updates and backups need additional disk headroom."
+  fail "Workspace has less than $MIN_FREE_GB GiB free. Windows updates and backups need additional disk headroom."
 fi
 
 mkdir -p "$ROOT/storage"
 if space_disk_exists; then
   disk_bytes="$(stat -c '%s' "$WINDOWS_DISK")"
   disk_allocated="$(du -h "$WINDOWS_DISK" | awk '{print $1}')"
-  pass "Persistent disk exists: logical size ${(( disk_bytes / 1073741824 )) GiB; allocated blocks ${disk_allocated"
+  pass "Persistent disk exists: logical size $(( disk_bytes / 1073741824 )) GiB; allocated blocks $disk_allocated"
 else
   warn "No valid storage/data.img exists. Preflight will not create one."
 fi
 
 echo
 if (( errors > 0 )); then
-  echo "Preflight FAILED with ${errors blocking issue(s). No VM was started."
+  echo "Preflight FAILED with $errors blocking issue(s). No VM was started."
   exit 2
 fi
 

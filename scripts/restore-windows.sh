@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT/scripts/lib.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/scripts/lib.sh"
 space_load_env
 
 if (( $# != 1 )); then
-  echo "Usage: ${0 gs://BUCKET/PREFIX/windows-TIMESTAMP.img.gz" >&2
+  echo "Usage: $0 gs://BUCKET/PREFIX/windows-TIMESTAMP.img.gz" >&2
   exit 2
 fi
 object="$1"
@@ -28,7 +28,7 @@ if [[ -e "$WINDOWS_DISK" || -L "$WINDOWS_DISK" ]]; then
 fi
 
 mkdir -p "$ROOT/storage"
-tmp_dir="$(mktemp -d "${{TMPDIR:-/tmp}/space-windows-restore.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/space-windows-restore.XXXXXX")"
 restore_tmp="$ROOT/storage/data.img.restore.$$"
 cleanup() {
   rm -rf -- "$tmp_dir"
@@ -39,7 +39,7 @@ trap cleanup EXIT
 archive="$tmp_dir/$(basename "$object")"
 sha_file="$tmp_dir/manifest.sha256"
 gcloud storage cp "$object" "$archive"
-gcloud storage cp "${object.sha256" "$sha_file"
+gcloud storage cp "$object.sha256" "$sha_file"
 
 expected="$(tr -d '[:space:]' < "$sha_file")"
 actual="$(sha256sum "$archive" | awk '{print $1}')"
@@ -53,7 +53,6 @@ echo "Archive hash and gzip integrity passed. Restoring to a temporary file..."
 gzip -dc "$archive" | dd of="$restore_tmp" conv=sparse status=progress
 [[ -s "$restore_tmp" ]] || { echo "ERROR: restored disk is empty." >&2; exit 2; }
 
-# Never overwrite the destination, even if another process creates it mid-restore.
 if [[ -e "$WINDOWS_DISK" || -L "$WINDOWS_DISK" ]]; then
   echo "ERROR: storage/data.img appeared during restore; refusing to replace it." >&2
   exit 2
