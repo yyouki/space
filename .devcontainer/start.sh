@@ -1,34 +1,11 @@
-#!/bin/bash
-cd "$(dirname "$0")/.."
+#!/usr/bin/env bash
+set -Eeuo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-mkdir -p storage
-
-# 1. Bersihkan kontainer lama di memori Docker
-docker rm -f windows 2>/dev/null || true
-
-# 2. Jalankan Windows Tiny10
-docker run -d \
-  --name windows \
-  --stop-timeout 120 \
-  -p 8006:8006 \
-  -p 3389:3389 \
-  -e VERSION='tiny10' \
-  -e RAM_SIZE='4G' \
-  -e DISK_SIZE='18G' \
-  -e DISK_CACHE='writethrough' \
-  -v "$(pwd)/storage:/storage" \
-  --device=/dev/kvm \
-  --device=/dev/net/tun \
-  --cap-add NET_ADMIN \
-  dockurr/windows
-
-# 3. Jalankan Tailscale
-if ! command -v tailscale &> /dev/null; then
-    curl -fsSL https://tailscale.com/install.sh | sh
+# Lifecycle startup is non-destructive: it may reuse an existing VM but never
+# initializes a new Windows disk.
+if ! bash "$ROOT/scripts/start-windows.sh" --lifecycle; then
+  echo
+  echo "WARNING: Windows VM was not started. Review the message above."
+  echo "This Codespace remains available; no OS disk was created or replaced."
 fi
-
-sudo pkill -f tailscaled 2>/dev/null || true
-sudo tailscaled --tun=userspace-networking &
-sleep 2
-
-sudo tailscale up --accept-routes

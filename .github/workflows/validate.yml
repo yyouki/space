@@ -1,0 +1,31 @@
+name: Validate shell scripts
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - fix/persistent-os-lifecycle-backup
+
+jobs:
+  shell-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Validate Bash syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in .devcontainer/start.sh scripts/*.sh; do
+            echo "Checking $script"
+            bash -n "$script"
+          done
+      - name: Validate devcontainer JSON
+        run: python -m json.tool .devcontainer/devcontainer.json >/dev/null
+      - name: Guard persistent startup from destructive commands
+        run: |
+          if grep -nE 'docker rm -f|truncate .*storage/data\.img|rm -f .*storage/data\.img' .devcontainer/start.sh scripts/start-windows.sh; then
+            echo "Unexpected destructive command found in normal startup." >&2
+            exit 1
+          fi
