@@ -99,7 +99,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 & '\\host.lan\Data\install-ai-tools.ps1'
 ```
 
-Script mencoba memasang Cursor dan aplikasi ChatGPT (Codex tersedia di dalamnya); Antigravity dibuka melalui halaman download resminya untuk pemasangan manual. Setiap tool dapat meminta login dan memiliki batas pemakaian/langganan masing-masing.
+Script mencoba memasang Google Antigravity, Cursor, dan aplikasi ChatGPT (Codex tersedia di dalamnya) melalui `winget`. Jika `winget` tidak tersedia atau instalasi Antigravity gagal, halaman download resmi dibuka untuk instalasi manual. Login dilakukan sendiri, dan setiap tool dapat memiliki batas pemakaian/langganan masing-masing.
 
 Repo ini tidak membuat akun Google, tidak mengakali kelayakan usia/region, dan tidak memberikan Google AI Pro secara otomatis. Promosi dan subscription harus diklaim oleh pemegang akun yang memenuhi syarat melalui Google; perangkat/promo tertentu dapat mensyaratkan pembelian.
 
