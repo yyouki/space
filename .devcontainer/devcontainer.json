@@ -1,5 +1,16 @@
 {
-  "name": "Windows 11 Cloud RDP",
+  "name": "Codespaces OS Lab (Windows VM, experimental)",
   "forwardPorts": [8006, 3389],
+  "portsAttributes": {
+    "8006": {
+      "label": "Windows VM web console",
+      "onAutoForward": "openBrowser"
+    },
+    "3389": {
+      "label": "Windows RDP (if reachable)",
+      "visibility": "private",
+      "onAutoForward": "notify"
+    }
+  },
   "postStartCommand": "bash .devcontainer/start.sh"
 }

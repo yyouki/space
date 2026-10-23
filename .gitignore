@@ -1,0 +1,14 @@
+/storage/*
+!/storage/.gitkeep
+.env
+.env.*
+!.env.example
+*.img
+*.qcow2
+*.vdi
+*.vmdk
+*.iso
+*.img.gz
+*.img.gz.sha256
+gcloud-credentials*.json
+service-account*.json
