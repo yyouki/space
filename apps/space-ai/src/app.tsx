@@ -1,11 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useAgent } from "agents/react";
 import { parseSupportedVideoLink, type SupportedVideoLink } from "./video-links";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
-import type { AutonomySettings, SpaceAgent } from "./server";
+import type { AutonomySettings } from "./server";
 import type { MouseEvent } from "react";
 import type { TokenUsageSummary, WorkspaceFileMetadata } from "./analytics";
+import { useSpaceAgentConnection } from "./connection";
+import { resolveShareLinks } from "./security/share-links";
 
 const AnalyticsPage = lazy(() => import("./analytics"));
 
@@ -17,6 +18,43 @@ const DEFAULT_SETTINGS: AutonomySettings = {
   projectFiles: "selected_workspace",
   selfUpdate: "automatic_after_gates"
 };
+
+type AppearancePreferences = {
+  theme: "light" | "dark" | "system";
+  density: "comfortable" | "compact";
+  reduceMotion: boolean;
+  codeFont: "JetBrains Mono" | "System Mono";
+  lineNumbers: boolean;
+};
+
+const DEFAULT_APPEARANCE: AppearancePreferences = {
+  theme: "light",
+  density: "comfortable",
+  reduceMotion: false,
+  codeFont: "JetBrains Mono",
+  lineNumbers: true
+};
+
+/** Read local presentation preferences without allowing malformed storage to break the app. */
+function readAppearancePreferences(): AppearancePreferences {
+  if (typeof window === "undefined") return DEFAULT_APPEARANCE;
+
+  try {
+    const stored = window.localStorage.getItem("space-appearance");
+    if (!stored) return DEFAULT_APPEARANCE;
+    const value = JSON.parse(stored) as Partial<AppearancePreferences>;
+
+    return {
+      theme: value.theme === "dark" || value.theme === "system" ? value.theme : "light",
+      density: value.density === "compact" ? "compact" : "comfortable",
+      reduceMotion: value.reduceMotion === true,
+      codeFont: value.codeFont === "System Mono" ? "System Mono" : "JetBrains Mono",
+      lineNumbers: value.lineNumbers !== false
+    };
+  } catch {
+    return DEFAULT_APPEARANCE;
+  }
+}
 
 const NAV_ITEMS = [
   { href: "/", label: "Chat" },
@@ -268,11 +306,14 @@ type SessionProfile = {
 };
 
 function Workspace({ onLogout, profile }: { onLogout: () => void; profile: SessionProfile | null }) {
-  const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [settings, setSettings] = useState<AutonomySettings>(DEFAULT_SETTINGS);
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const [appearance, setAppearance] = useState<AppearancePreferences>(readAppearancePreferences);
+  const [systemPrefersDark, setSystemPrefersDark] = useState(
+    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches === true
+  );
   const [settingsNotice, setSettingsNotice] = useState("");
   const [shareInfo, setShareInfo] = useState<{ url: string; jsonUrl: string; token: string; expiresAt: string; messageCount: number } | null>(null);
   const [shareNotice, setShareNotice] = useState("");
@@ -292,19 +333,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "/" : window.location.pathname);
   const endRef = useRef<HTMLDivElement>(null);
 
-  const agent = useAgent<SpaceAgent>({
-    agent: "SpaceAgent",
-    basePath: "/api/me",
-    onOpen: useCallback(() => {
-      setConnected(true);
-      setError("");
-    }, []),
-    onClose: useCallback(() => setConnected(false), []),
-    onError: useCallback(() => {
-      setConnected(false);
-      setError("Koneksi ke Space terputus. Periksa jaringan dan status deployment.");
-    }, [])
-  });
+  const { agent, connected, connectionIssue, reconnect } = useSpaceAgentConnection();
 
   const {
     messages,
@@ -317,12 +346,37 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
   const busy = status === "streaming" || status === "submitted";
   const currentPath = NAV_ITEMS.some((item) => item.href === pathname) ? pathname : "/";
+  const resolvedTheme = appearance.theme === "system"
+    ? (systemPrefersDark ? "dark" : "light")
+    : appearance.theme;
 
   useEffect(() => {
     const onPopState = () => setPathname(window.location.pathname);
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+    const onChange = (event: MediaQueryListEvent) => setSystemPrefersDark(event.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = resolvedTheme;
+    root.dataset.density = appearance.density;
+    root.dataset.reduceMotion = String(appearance.reduceMotion);
+    root.dataset.codeFont = appearance.codeFont === "System Mono" ? "system" : "jetbrains";
+
+    try {
+      window.localStorage.setItem("space-appearance", JSON.stringify(appearance));
+    } catch {
+      // Preferences still work for the current session when browser storage is unavailable.
+    }
+  }, [appearance, resolvedTheme]);
 
   const navigate = (event: MouseEvent<HTMLAnchorElement>, path: string) => {
     event.preventDefault();
@@ -633,10 +687,13 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
     setShareNotice("Membuat tautan…");
     try {
       const result = await agent.stub.createChatShare();
-      setShareInfo(result);
+      // Resolve the relative share route against the active host, including Preview deployments.
+      const shareUrls = resolveShareLinks(result, window.location.origin);
+      const shareInfo = { ...result, ...shareUrls };
+      setShareInfo(shareInfo);
       setShareNotice("Tautan dibuat. Siapa pun yang memiliki tautan dapat membaca snapshot ini selama 7 hari.");
       try {
-        await navigator.clipboard.writeText(result.url);
+        await navigator.clipboard.writeText(shareInfo.url);
         setShareNotice("Tautan disalin ke clipboard.");
       } catch {
         // Keep the URL visible so it can be copied manually.
@@ -713,7 +770,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
         ))}
       </nav>
       {currentPath === "/" && (
-        <details className="conversation-history">
+        <details className="conversation-history" open>
           <summary>History <span>{conversations.length}</span></summary>
           <label className="conversation-search">
             <input
@@ -752,7 +809,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
       )}
       <div className="topbar-actions">
         <span className={`connection ${connected ? "online" : "offline"}`}>
-          <i /> {connected ? "Connected" : "Connecting"}
+          <i /> {connected ? "Connected" : connectionIssue?.kind === "reconnecting" ? "Reconnecting" : "Offline"}
         </span>
         <div className="account-profile" title={profile ? profile.login : "Account profile"}>
           {profile?.avatarUrl
@@ -937,7 +994,16 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
   const vscodePage = (
     <Suspense fallback={<main className="page-container"><p>Opening Space IDE…</p></main>}>
-      <VSCodeWebPage />
+      <VSCodeWebPage
+        agent={agent}
+        connected={connected}
+        connectionIssue={connectionIssue}
+        onReconnect={reconnect}
+        theme={resolvedTheme}
+        onThemeChange={(theme) => setAppearance((current) => ({ ...current, theme }))}
+        codeFont={appearance.codeFont === "System Mono" ? "system" : "jetbrains"}
+        lineNumbers={appearance.lineNumbers}
+      />
     </Suspense>
   );
 
@@ -951,6 +1017,68 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
         </div>
         <span className="meta-chip">Owner controls</span>
       </div>
+
+      <section className="surface-card settings-card appearance-settings-card">
+        <div className="section-title">
+          <div><h2>Appearance</h2><p>Choose how Space looks on this device. These preferences are saved locally.</p></div>
+          <span className="meta-chip">This device</span>
+        </div>
+        <SettingSelect
+          label="Theme"
+          description="Applies to Chat, IDE, Analytics, Settings, and the task console."
+          value={appearance.theme}
+          options={[
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+            { value: "system", label: "System" }
+          ]}
+          onChange={(value) => setAppearance((current) => ({ ...current, theme: value }))}
+        />
+        <SettingSelect
+          label="Interface density"
+          description="Controls spacing in navigation, conversation lists, and panels."
+          value={appearance.density}
+          options={[
+            { value: "comfortable", label: "Comfortable" },
+            { value: "compact", label: "Compact" }
+          ]}
+          onChange={(value) => setAppearance((current) => ({ ...current, density: value }))}
+        />
+        <label className="setting-toggle-row">
+          <span><strong>Reduce motion</strong><small>Turns off most transitions and interface animations.</small></span>
+          <input
+            type="checkbox"
+            checked={appearance.reduceMotion}
+            onChange={(event) => setAppearance((current) => ({ ...current, reduceMotion: event.target.checked }))}
+          />
+        </label>
+      </section>
+
+      <section className="surface-card settings-card editor-settings-card">
+        <div className="section-title"><div><h2>Editor</h2><p>Configure the code editor and terminal appearance.</p></div></div>
+        <SettingSelect
+          label="Code font"
+          description="Used in the editor, terminal, and code blocks."
+          value={appearance.codeFont}
+          options={[
+            { value: "JetBrains Mono", label: "JetBrains Mono" },
+            { value: "System Mono", label: "System monospace" }
+          ]}
+          onChange={(value) => setAppearance((current) => ({ ...current, codeFont: value }))}
+        />
+        <label className="setting-toggle-row">
+          <span><strong>Line numbers</strong><small>Show line numbers in the browser IDE editor.</small></span>
+          <input
+            type="checkbox"
+            checked={appearance.lineNumbers}
+            onChange={(event) => setAppearance((current) => ({ ...current, lineNumbers: event.target.checked }))}
+          />
+        </label>
+        <div className="settings-preview">
+          <div><span className="eyebrow">PREVIEW</span><strong>const message = "Hello, Space";</strong></div>
+          <small>{appearance.codeFont} · {appearance.lineNumbers ? "Line numbers on" : "Line numbers off"}</small>
+        </div>
+      </section>
 
       <section className="surface-card settings-card">
         <div className="section-title"><div><h2>Autonomy preferences</h2><p>These choices are saved to the private Space agent. They do not activate tools that have not been implemented.</p></div></div>
@@ -1043,6 +1171,17 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   return (
     <div className="app-shell">
       {header}
+      {!connected && connectionIssue && (
+        <aside className={"connection-banner " + connectionIssue.kind} role="status">
+          <div className="connection-banner-copy">
+            <strong>{connectionIssue.kind === "unauthenticated" ? "Sign-in required" : connectionIssue.kind === "workspace-unavailable" ? "Private workspace unavailable" : connectionIssue.kind === "websocket-unavailable" ? "Live connection interrupted" : connectionIssue.kind === "network" ? "Cannot reach Space" : "Reconnecting to Space"}</strong>
+            <p>{connectionIssue.message}</p>
+          </div>
+          <button type="button" onClick={() => connectionIssue.kind === "unauthenticated" ? window.location.reload() : reconnect()}>
+            {connectionIssue.kind === "unauthenticated" ? "Reload sign-in" : "Reconnect"}
+          </button>
+        </aside>
+      )}
       {currentPath === "/ide" ? vscodePage :
         currentPath === "/analytics" ? (
           <Suspense fallback={<main className="page-container"><p>Loading analytics…</p></main>}>
@@ -1058,6 +1197,7 @@ type SessionResponse = {
   authenticated: boolean;
   login: string | null;
   profile: SessionProfile | null;
+  githubAvailable: boolean;
   googleAvailable: boolean;
 };
 
@@ -1093,7 +1233,7 @@ export default function App() {
       method: "POST",
       credentials: "same-origin"
     });
-    setSession({ authenticated: false, login: null, profile: null, googleAvailable: session?.googleAvailable ?? false });
+    setSession({ authenticated: false, login: null, profile: null, githubAvailable: session?.githubAvailable ?? false, googleAvailable: session?.googleAvailable ?? false });
   };
 
   if (loading) {
@@ -1126,7 +1266,11 @@ export default function App() {
           <p className="eyebrow">PRIVATE AI WORKSPACE</p>
           <h1>Sign in to Space</h1>
           <p>Only the configured owner account can open this workspace.</p>
-          <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>
+          {session?.githubAvailable ? (
+            <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>
+          ) : (
+            <p className="auth-provider-note">GitHub sign-in is not configured for this deployment.</p>
+          )}
           {session?.googleAvailable ? (
             <a className="auth-button auth-button-google" href="/auth/google">Continue with Google <span>↗</span></a>
           ) : (

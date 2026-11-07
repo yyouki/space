@@ -1,23 +1,26 @@
 # Space UI design references
 
-The SVGs in this directory are design source artboards. They guide React components and styles; the app does not render the full-screen artboards as runtime images.
+These SVG artboards are the visual source of truth for the Space UI. The live app
+implements the layouts using React components and CSS; the artboards are not
+rendered as static screenshots.
 
-| Reference | App implementation |
+| Artboard | Live implementation |
 | --- | --- |
-| space-chat.svg | src/app.tsx chat workspace and src/styles.css |
-| space-ide-desktop.svg | src/ide.tsx and src/ide.css |
-| space-ide-mobile.svg | Responsive IDE layout in src/ide.css |
-| space-analytics.svg | src/analytics.tsx and src/styles.css |
-| space-settings.svg | Settings controls in src/app.tsx and src/styles.css |
-| space-design-system.svg | Shared color, typography, spacing, radius, and component tokens |
+| `space-chat.svg` | Chat workspace in `src/app.tsx` |
+| `space-ide-desktop.svg` | Desktop editor in `src/ide.tsx` |
+| `space-ide-mobile.svg` | Responsive editor layout in `src/ide.css` |
+| `space-analytics.svg` | Usage dashboard in `src/analytics.tsx` |
+| `space-settings.svg` | Preferences and privacy settings in `src/app.tsx` |
+| `space-design-system.svg` | Shared tokens used by `src/styles.css` and `src/ide.css` |
 
-## Applied visual direction
+The previous layered CSS overrides have been replaced by a single implementation
+of the Space design language. The reference palette is:
 
-- Light surfaces use #FAFAF9, #F1F1EF, and #E2E2DF.
-- Interface text uses #1C1D1F; the accent is #2F7D6D.
-- The IDE dark palette uses #1B1C1F, #17181B, and #2A2C31, with #4FB39C as its accent.
-- Interface and code fonts use local/system fallbacks; no external font download is required.
-- Mobile chat adapts the desktop chat reference through CSS breakpoints because there is no separate mobile chat artboard.
-- The existing IDE light theme uses the shared light palette; there is no separate light desktop IDE artboard.
+- Light surfaces: `#FAFAF9`, `#F1F1EF`, and `#E2E2DF`.
+- Interface text: `#1C1D1F`; accent: `#2F7D6D`.
+- IDE dark surfaces: `#1B1C1F`, `#17181B`, and `#2A2C31`; accent: `#4FB39C`.
+- Interface and code fonts use local/system fallbacks when the optional web font is unavailable.
 
-The current implementation preserves existing chat, workspace, analytics, settings, and IDE behavior. The artboards are design guidance, not a claim that every illustrated control or placeholder is implemented as a product feature.
+The mobile chat layout is an adaptation of the desktop chat artboard because
+there is no separate mobile chat artboard. The existing IDE light theme uses the
+shared light palette; there is no separate light desktop IDE artboard.

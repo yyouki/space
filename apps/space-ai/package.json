@@ -8,22 +8,27 @@
     "dev": "vite dev",
     "build": "vite build",
     "types": "wrangler types env.d.ts",
-    "test": "node --test src/security/tenant-routing.test.js src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js ../../scripts/sandbox-runtime.test.mjs",
+    "test": "node --test src/security/tenant-routing.test.js src/security/connection-diagnosis.test.js src/security/share-links.test.js src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js ../../scripts/sandbox-runtime.test.mjs",
     "check": "npm run types && tsc --noEmit && npm test",
     "deploy": "npm run check && vite build && wrangler deploy"
   },
   "dependencies": {
-    "@cloudflare/ai-chat": "0.12.2",
-    "agents": "0.32.0",
     "@ai-sdk/provider": "4.0.35",
     "@ai-sdk/react": "4.0.167",
+    "@cloudflare/ai-chat": "0.12.2",
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-html": "^6.4.12",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/lang-python": "^6.2.1",
+    "agents": "0.32.0",
     "ai": "7.0.162",
+    "codemirror": "^6.0.2",
     "fflate": "0.8.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "zod": "4.4.3",
-    "codemirror": "^6.0.2",
-    "@codemirror/language-data": "^6.5.2"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.67.0",
@@ -33,6 +38,6 @@
     "@vitejs/plugin-react": "6.0.3",
     "typescript": "6.0.3",
     "vite": "8.1.0",
-    "wrangler": "4.157.0"
+    "wrangler": "^4.158.0"
   }
 }

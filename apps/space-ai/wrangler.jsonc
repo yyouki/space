@@ -6,13 +6,16 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "secrets": {
-    "required": [
-      "GITHUB_OAUTH_CLIENT_ID",
-      "GITHUB_OAUTH_CLIENT_SECRET",
-      "SESSION_SECRET",
-      "GITHUB_ACTIONS_TOKEN"
-    ]
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.2,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 0.2,
+      "persist": true
+    }
   },
   "ai": {
     "binding": "AI",
@@ -66,14 +69,12 @@
   ],
   "vars": {
     "DEPLOYMENT_ENV": "production",
-    "GITHUB_OWNER_LOGIN": "yyouki",
-    "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
+    "GITHUB_OWNER_LOGIN": "yyouki"
   },
   "previews": {
     "vars": {
       "DEPLOYMENT_ENV": "preview",
-      "GITHUB_OWNER_LOGIN": "yyouki",
-      "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
+      "GITHUB_OWNER_LOGIN": "yyouki"
     },
     "ai": {
       "binding": "AI"

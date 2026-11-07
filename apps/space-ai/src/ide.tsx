@@ -1,16 +1,72 @@
-import { useAgent } from "agents/react";
 import { basicSetup, EditorView } from "codemirror";
 import { LanguageDescription, defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
-import { languages } from "@codemirror/language-data";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type FormEvent } from "react";
-import type { SpaceAgent } from "./server";
+import type { SpaceAgentClient, SpaceConnectionIssue } from "./connection";
 import "./ide.css";
 
 type WorkspaceEntry = { path: string; language: string; sizeBytes: number; updatedAt: number };
 type OpenFile = WorkspaceEntry & { content: string; dirty: boolean };
 type CursorPosition = { line: number; column: number };
 type ShortcutMap = Record<string, string>;
+
+/**
+ * Load only the language support needed by the active file.
+ * This prevents every CodeMirror parser from entering the initial IDE bundle.
+ */
+const editorLanguages: LanguageDescription[] = [
+  LanguageDescription.of({
+    name: "JavaScript",
+    alias: ["js", "mjs", "cjs"],
+    extensions: ["js", "mjs", "cjs"],
+    load: async () => (await import("@codemirror/lang-javascript")).javascript()
+  }),
+  LanguageDescription.of({
+    name: "TypeScript",
+    alias: ["ts", "mts", "cts"],
+    extensions: ["ts", "mts", "cts"],
+    load: async () => (await import("@codemirror/lang-javascript")).javascript({ typescript: true })
+  }),
+  LanguageDescription.of({
+    name: "JSX",
+    extensions: ["jsx"],
+    load: async () => (await import("@codemirror/lang-javascript")).javascript({ jsx: true })
+  }),
+  LanguageDescription.of({
+    name: "TSX",
+    extensions: ["tsx"],
+    load: async () => (await import("@codemirror/lang-javascript")).javascript({ jsx: true, typescript: true })
+  }),
+  LanguageDescription.of({
+    name: "Python",
+    alias: ["py"],
+    extensions: ["py", "pyw"],
+    load: async () => (await import("@codemirror/lang-python")).python()
+  }),
+  LanguageDescription.of({
+    name: "JSON",
+    alias: ["jsonc"],
+    extensions: ["json", "jsonc"],
+    load: async () => (await import("@codemirror/lang-json")).json()
+  }),
+  LanguageDescription.of({
+    name: "HTML",
+    alias: ["htm"],
+    extensions: ["html", "htm"],
+    load: async () => (await import("@codemirror/lang-html")).html()
+  }),
+  LanguageDescription.of({
+    name: "CSS",
+    extensions: ["css"],
+    load: async () => (await import("@codemirror/lang-css")).css()
+  }),
+  LanguageDescription.of({
+    name: "Markdown",
+    alias: ["md"],
+    extensions: ["md", "markdown"],
+    load: async () => (await import("@codemirror/lang-markdown")).markdown()
+  })
+];
 
 const DEFAULT_SHORTCUTS: ShortcutMap = {
   save: "Ctrl+S",
@@ -79,7 +135,7 @@ function CodeEditor({
 
     const mount = async () => {
       let language: Extension = [];
-      const description = LanguageDescription.matchFilename(languages, path);
+      const description = LanguageDescription.matchFilename(editorLanguages, path);
       if (description) {
         try { language = await description.load(); } catch { language = []; }
       }
@@ -135,8 +191,27 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-export default function SpaceIDEPage() {
-  const [connected, setConnected] = useState(false);
+type SpaceIDEPageProps = {
+  agent: SpaceAgentClient;
+  connected: boolean;
+  connectionIssue: SpaceConnectionIssue | null;
+  onReconnect: () => void;
+  theme: "dark" | "light";
+  onThemeChange: (theme: "dark" | "light") => void;
+  codeFont: "system" | "jetbrains";
+  lineNumbers: boolean;
+};
+
+export default function SpaceIDEPage({
+  agent,
+  connected,
+  connectionIssue,
+  onReconnect,
+  theme,
+  onThemeChange,
+  codeFont,
+  lineNumbers
+}: SpaceIDEPageProps) {
   const [files, setFiles] = useState<WorkspaceEntry[]>([]);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activePath, setActivePath] = useState("");
@@ -144,10 +219,6 @@ export default function SpaceIDEPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    try { return window.localStorage.getItem("space-ide-theme") === "light" ? "light" : "dark"; }
-    catch { return "dark"; }
-  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activity, setActivity] = useState<"explorer" | "search" | "source" | "extensions">("explorer");
   const [panel, setPanel] = useState<"terminal" | "problems" | "output">("terminal");
@@ -172,14 +243,6 @@ export default function SpaceIDEPage() {
   });
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 });
   const terminalRef = useRef<HTMLInputElement>(null);
-
-  const agent = useAgent<SpaceAgent>({
-    agent: "SpaceAgent",
-    basePath: "/api/me",
-    onOpen: useCallback(() => { setConnected(true); setError(""); }, []),
-    onClose: useCallback(() => setConnected(false), []),
-    onError: useCallback(() => { setConnected(false); setError("The connection to your private workspace was interrupted."); }, [])
-  });
 
   const activeFile = openFiles.find((file) => file.path === activePath) ?? null;
   const appendTerminal = useCallback((line: string) => {
@@ -417,8 +480,8 @@ export default function SpaceIDEPage() {
     if (id === "explorer") { setActivity("explorer"); setSidebarOpen(true); }
     if (id === "search") { setActivity("search"); setSidebarOpen(true); }
     if (id === "shortcuts") setShortcutsOpen(true);
-    if (id === "theme") setTheme((current) => current === "dark" ? "light" : "dark");
-  }, [createFile, saveAll, saveFile]);
+    if (id === "theme") onThemeChange(theme === "dark" ? "light" : "dark");
+  }, [createFile, onThemeChange, saveAll, saveFile, theme]);
 
   const runShortcut = useCallback((id: string) => {
     if (id === "save") void saveFile();
@@ -483,14 +546,20 @@ export default function SpaceIDEPage() {
   };
 
   return (
-    <main className="space-ide" data-theme={theme}>
+    <main
+      className="space-ide"
+      data-theme={theme}
+      data-code-font={codeFont}
+      data-line-numbers={lineNumbers ? "true" : "false"}
+    >
       <header className="ide-topbar">
         <div className="ide-topbar-brand"><span className="ide-brand-mark">S</span><strong>Space</strong><span className="ide-brand-divider">/</span><span>IDE</span></div>
-        <div className="ide-topbar-center"><span className="ide-workspace-chip">Private workspace</span><span className="ide-connection-state"><i className={connected ? "online" : ""} />{connected ? "Connected" : "Connecting"}</span></div>
+        <div className="ide-topbar-center"><span className="ide-workspace-chip">Private workspace</span><span className="ide-connection-state"><i className={connected ? "online" : ""} />{connected ? "Connected" : connectionIssue?.kind === "reconnecting" ? "Reconnecting" : "Offline"}</span></div>
         <div className="ide-topbar-actions">
           <button type="button" onClick={() => { setQuickOpen(true); setQuickQuery(""); }} title={"Quick open · " + shortcuts.quickOpen}>⌕ <span>Open file</span></button>
           <button type="button" onClick={() => setShortcutsOpen(true)} title="Keyboard shortcuts">⌨</button>
-          <button type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title="Toggle theme">{theme === "dark" ? "☼" : "◐"}</button>
+          <button type="button" onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")} title="Toggle theme">{theme === "dark" ? "☼" : "◐"}</button>
+          {!connected && <button type="button" onClick={onReconnect} title="Reconnect workspace">↻ <span>Reconnect</span></button>}
         </div>
       </header>
 
@@ -577,7 +646,7 @@ export default function SpaceIDEPage() {
       </div>
 
       {(notice || error) && <div className={"ide-toast" + (error ? " error" : "")} role="status"><span>{error || notice}</span><button type="button" onClick={() => { setNotice(""); setError(""); }}>×</button></div>}
-      {!connected && !error && <div className="ide-connection-note">Connecting to your private workspace…</div>}
+      {!connected && !error && <div className="ide-connection-note">{connectionIssue?.message ?? "Connecting to your private workspace…"}</div>}
 
       {paletteOpen && <Modal title="Command palette" onClose={() => setPaletteOpen(false)}>
         <input className="ide-modal-search" autoFocus value={paletteQuery} onChange={(event) => setPaletteQuery(event.target.value)} placeholder="Search commands…" />

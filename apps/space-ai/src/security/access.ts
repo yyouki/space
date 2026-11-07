@@ -114,7 +114,7 @@ async function hmac(value: string, secret: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(signature));
 }
 
-function oauthReady(env: AuthEnvironment): boolean {
+export function isGitHubOAuthReady(env: AuthEnvironment): boolean {
   return Boolean(
     env.GITHUB_OAUTH_CLIENT_ID &&
     env.GITHUB_OAUTH_CLIENT_SECRET &&
@@ -233,7 +233,7 @@ export async function handleAuthRequest(
   const url = new URL(request.url);
 
   if (url.pathname === "/auth/github" && request.method === "GET") {
-    if (!oauthReady(env)) {
+    if (!isGitHubOAuthReady(env)) {
       return Response.json({ error: "GitHub OAuth is not configured." }, { status: 503 });
     }
 
@@ -261,7 +261,7 @@ export async function handleAuthRequest(
     const clearHeaders = new Headers({ "Cache-Control": "no-store" });
     clearHeaders.append("Set-Cookie", clearState);
 
-    if (!oauthReady(env)) {
+    if (!isGitHubOAuthReady(env)) {
       return new Response("GitHub OAuth is not configured.", { status: 503, headers: clearHeaders });
     }
 
